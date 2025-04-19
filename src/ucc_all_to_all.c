@@ -1,6 +1,7 @@
 #include "ucc_all_to_all.h"
 
 #include <ucc/api/ucc.h>
+// #include <ucc/api/ucc_ee.h>
 
 #define STR(x) #x
 #define UCC_CHECK(_call)                                            \
@@ -163,9 +164,25 @@ int MPI_Alltoall(const void *sendbuf, int sendcount,
     args.dst.info.datatype = mpi_to_ucc_datatype(recvtype);
     args.dst.info.mem_type = UCC_MEMORY_TYPE_CUDA;
 
-
     UCC_CHECK(ucc_collective_init(&args, &req, g_team));
-    UCC_CHECK(ucc_collective_post(req));
+
+    /* Set up CUDA stream trigger */
+    ucc_ev_t comp_ev, *post_ev;
+    comp_ev.ev_type = UCC_EVENT_COMPUTE_COMPLETE;
+    comp_ev.ev_context = NULL;
+    comp_ev.ev_context_size = 0;
+    comp_ev.req = req;
+
+    ucc_ee_h ee;
+    ucc_ee_params_t ee_params;
+    ee_params.ee_type = UCC_EE_CUDA_STREAM;
+    ee_params.ee_context = (void*)stream;
+    UCC_CHECK(ucc_ee_create(g_team, &ee_params, &ee)); // TODO: move to init
+    
+    UCC_CHECK(ucc_collective_triggered_post(ee, &comp_ev));
+    UCC_CHECK(ucc_ee_get_event(ee, &post_ev));
+    UCC_CHECK(ucc_ee_ack_event(ee, post_ev));
+
     while (UCC_INPROGRESS == ucc_collective_test(req)) {
         UCC_CHECK(ucc_context_progress(g_ctx));
     }
