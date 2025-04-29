@@ -112,6 +112,7 @@ program test_mpi_alltoall
 
 
     !$acc host_data use_device(sendbuf,recvbuf)
+    write (*,*) LOC(sendbuf), LOC(recvbuf)
     do iter = 1, niter
         if( .false. ) then
             ncclRes = ncclGroupStart()
