@@ -126,7 +126,7 @@ int UCC_init() {
     };
     ucc_lib_config_h     lib_config;
 
-    UCC_CHECK(ucc_lib_config_read(NULL, NULL, &lib_config));
+    UCC_CHECK(ucc_lib_config_read("F90", NULL, &lib_config));
     UCC_CHECK(ucc_init(&lib_params, lib_config, &g_lib));
     ucc_lib_config_release(lib_config);
 
@@ -212,7 +212,8 @@ int MPI_Alltoall(const void *sendbuf, int sendcount,
     UCC_CHECK(ucc_collective_post(req));
 #endif
 
-    while (UCC_INPROGRESS == ucc_collective_test(req)) {
+    // triggered post may return UCC_INIT if collective has not started yet
+    while (ucc_collective_test(req) > 0) {
         UCC_CHECK(ucc_context_progress(g_ctx));
     }
     ucc_collective_finalize(req);
