@@ -157,7 +157,6 @@ void UCC_init_(){
     UCC_init();
 }
 
-
 extern"C"
 int UCC_finalize() {
     /* Cleanup UCC */
@@ -216,7 +215,9 @@ int MPI_Alltoall(const void *sendbuf, int sendcount,
     while (UCC_INPROGRESS == ucc_collective_test(req)) {
         UCC_CHECK(ucc_context_progress(g_ctx));
     }
-    ucc_collective_finalize(req);   
+    ucc_collective_finalize(req);
+
+    UCC_CHECK(ucc_ee_destroy(ee));
 
     return 0;
 }
