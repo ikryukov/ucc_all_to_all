@@ -38,7 +38,6 @@ program test_mpi_alltoall
     call MPI_Init(ierr)
     comm = MPI_COMM_WORLD
 
-    call UCC_init();
 
     ! Get rank and size
     call MPI_Comm_rank(comm, rank, ierr)
@@ -63,6 +62,9 @@ program test_mpi_alltoall
     NUM_DEVICES=ACC_GET_NUM_DEVICES(ACC_DEVICE_NVIDIA)
     DEVICE_NUM=MOD(rank,NUM_DEVICES)
     CALL ACC_SET_DEVICE_NUM(DEVICE_NUM,ACC_DEVICE_NVIDIA)
+
+! Init should be called after CUDA initialization
+    call UCC_init();
 
 !    write (*,*) "Rank ", rank, " uses device ", DEVICE_NUM
 

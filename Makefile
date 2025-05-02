@@ -2,7 +2,8 @@
 MPICC = mpicxx
 MPIF90 = mpif90
 NVCC = nvcc
-CUDA_HOME = /usr/local/cuda
+CUDA_HOME = /opt/nvidia/hpc_sdk/Linux_x86_64/25.1/cuda/12.6
+# CUDA_HOME = /usr/local/cuda
 UCC_HOME = /home/ilya/work/ucc/install
 
 # Include paths
