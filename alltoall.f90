@@ -16,6 +16,7 @@ program test_mpi_alltoall
     TYPE(ncclResult)   ncclRes
     TYPE(ncclUniqueId) ncclUID
     TYPE(ncclComm) NCCL_COMM
+    real(8) :: mem
     INTERFACE
       SUBROUTINE UCC_INIT() bind(c, name="UCC_init_")
       END SUBROUTINE
@@ -63,10 +64,13 @@ program test_mpi_alltoall
     DEVICE_NUM=MOD(rank,NUM_DEVICES)
     CALL ACC_SET_DEVICE_NUM(DEVICE_NUM,ACC_DEVICE_NVIDIA)
 
+
 ! Init should be called after CUDA initialization
     call UCC_init();
 
-!    write (*,*) "Rank ", rank, " uses device ", DEVICE_NUM
+    write (*,*) "Rank ", rank, " uses device ", DEVICE_NUM
+    ierr = GET_FREE_MEM_DEVICE(mem)
+    write(*,*) DEVICE_NUM, " free mem before NCCL init:", mem
 
     call MPI_Barrier(comm, ierr)
     start_time= MPI_Wtime()
@@ -88,6 +92,9 @@ program test_mpi_alltoall
     if (rank == root) then
          print *, "nccl init: ", time_taken
     end if
+    ierr = GET_FREE_MEM_DEVICE(mem)
+    write(*,*) DEVICE_NUM, " free mem after NCCL init:", mem
+
 
 
     ! Number of elements each process will send to each other process
@@ -110,13 +117,21 @@ program test_mpi_alltoall
 
     ! Perform MPI_Alltoall and measure the time taken
     call MPI_Barrier(comm, ierr)
-    start_time= MPI_Wtime()
+    ierr = GET_FREE_MEM_DEVICE(mem)
+    write(*,*) DEVICE_NUM, " free mem before warming up:", mem
 
 
     !$acc host_data use_device(sendbuf,recvbuf)
-    write (*,*) LOC(sendbuf), LOC(recvbuf)
-    do iter = 1, niter
-        if( .false. ) then
+    do iter = 0, niter
+        ! iter = 0 - warm up
+        if(iter .eq. 1) then
+            call MPI_Barrier(comm, ierr)
+            ierr = GET_FREE_MEM_DEVICE(mem)
+            write(*,*) DEVICE_NUM, " free mem before measurments:", mem
+
+            start_time= MPI_Wtime()
+        endif
+        if( .true. ) then
             ncclRes = ncclGroupStart()
             IF ( ncclRes <> ncclSuccess ) write(*,*) "ncclRes 1:",ncclRes
             DO i=1,size
@@ -130,11 +145,13 @@ program test_mpi_alltoall
         else
             call UCC_MPI_Alltoall(c_devloc(sendbuf), sendcount, MPI_INTEGER, c_devloc(recvbuf), sendcount, MPI_INTEGER, comm, ierr, acc_get_cuda_stream(1))
             !call MPI_Alltoall(sendbuf, sendcount, MPI_INTEGER, recvbuf, sendcount, MPI_INTEGER, comm, ierr)
-            write(*,*) "ierr = ", ierr
         endif
     enddo
     !$acc end host_data
     !$acc wait
+    ierr = GET_FREE_MEM_DEVICE(mem)
+    write(*,*) DEVICE_NUM, " free mem after measurments:", mem
+
 
     end_time= MPI_Wtime()
     time_taken = end_time - start_time
@@ -145,10 +162,10 @@ program test_mpi_alltoall
 
     end if
 
-    !$acc update self(recvbuf, sendbuf)
-        write(*,*) "s", rank, sendbuf
-    write(*,*) "======"
-        write(*,*) "r", rank, recvbuf
+!    !$acc update self(recvbuf, sendbuf)
+!        write(*,*) "s", rank, sendbuf
+!    write(*,*) "======"
+!        write(*,*) "r", rank, recvbuf
 
 
 
@@ -165,4 +182,35 @@ program test_mpi_alltoall
     ! Deallocate buffers
     deallocate(sendbuf)
     deallocate(recvbuf)
+
+    contains
+  FUNCTION GET_FREE_MEM_DEVICE(MFREE) RESULT(IERR)
+    USE openacc, ONLY : ACC_DEVICE_KIND,ACC_GET_DEVICE_TYPE,ACC_DEVICE_NVIDIA,ACC_GET_DEVICE_NUM, &
+                        ACC_GET_PROPERTY,ACC_PROPERTY_FREE_MEMORY
+    USE iso_c_binding
+
+    REAL(8) :: MFREE
+    INTEGER :: IERR
+
+    ! local variables
+    INTEGER(KIND=ACC_DEVICE_KIND) :: DEVICE_TYPE
+    INTEGER :: IDEVN
+
+    INTEGER(KIND=c_size_t) :: ISIZE
+
+    MFREE=0 ; IERR=0
+
+    DEVICE_TYPE=ACC_GET_DEVICE_TYPE()
+    IF (DEVICE_TYPE/=ACC_DEVICE_NVIDIA) THEN
+       IERR=1 ; RETURN
+    ENDIF
+
+    IDEVN = ACC_GET_DEVICE_NUM(ACC_DEVICE_NVIDIA)
+    ISIZE = ACC_GET_PROPERTY(IDEVN,ACC_DEVICE_NVIDIA,ACC_PROPERTY_FREE_MEMORY)
+
+    MFREE = REAL(ISIZE,KIND=8)
+  END FUNCTION GET_FREE_MEM_DEVICE
+
+
+
 end program test_mpi_alltoall

@@ -2,7 +2,7 @@
 MPICC = mpicxx
 MPIF90 = mpif90
 NVCC = nvcc
-CUDA_HOME = /opt/nvidia/hpc_sdk/Linux_x86_64/25.1/cuda/12.6
+CUDA_HOME = /opt/nvidia/hpc_sdk/Linux_x86_64/25.3/cuda/12.8
 # CUDA_HOME = /usr/local/cuda
 UCC_HOME = /home/ilya/work/ucc/install
 
@@ -13,10 +13,11 @@ INCLUDES = -I$(CUDA_HOME)/include \
 
 # Compiler flags
 CFLAGS = -g -fPIC $(INCLUDES)
+FFLAGS = -g -acc -gpu=cc80,cc90,cc70 -Minfo=accel
 NVCCFLAGS = -g -O2 $(INCLUDES)
 
 # Linker flags
-LDFLAGS = -L$(CUDA_HOME)/lib64 -L$(UCC_HOME)/lib
+LDFLAGS = -L$(CUDA_HOME)/lib64 -L$(UCC_HOME)/lib -acc
 LIBS = -lcudart -lucc
 
 # Library name
@@ -36,7 +37,7 @@ LIB_OBJ = $(LIB_SRC:.c=.o)
 TEST_OBJ = $(TEST_SRC:.c=.o)
 
 # Default target
-all: $(LIB) $(TARGET) $(TAGRETF)
+all: $(LIB) $(TARGET) $(TARGETF)
 
 # Library target
 $(LIB): $(LIB_OBJ)
@@ -47,15 +48,18 @@ $(TARGET): $(TEST_OBJ) $(LIB)
 	$(MPICC) $(TEST_OBJ) -L. -lucc_a2a $(LDFLAGS) $(LIBS) -o $@
 
 
-$(TARGETF): $(TEST_FSRC) $(LIB)
-	$(MPIF90) $(TEST_FSRC) -acc -Minfo=accel -L. -lucc_a2a $(LDFLAGS) $(LIBS) -cudalib=nccl -o $@	
+$(TARGETF): alltoall.o  $(LIB)
+	$(MPIF90) $< -L. -lucc_a2a $(LDFLAGS) $(LIBS) -cudalib=nccl -o $@	
 
 # Compilation rules
 %.o: %.c
 	$(MPICC) $(CFLAGS) -c $< -o $@
 
+%.o: %.f90
+	$(MPIF90) $(FFLAGS) -c $< -o $@
+
 # Clean rule
 clean:
-	rm -f $(TARGET) $(LIB) $(LIB_OBJ) $(TEST_OBJ) *~
+	rm -f $(TARGET) $(TARGETF) $(LIB) *.o *~ 
 
 .PHONY: all clean

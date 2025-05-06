@@ -11,35 +11,30 @@
     }
 
 static ucc_datatype_t mpi_to_ucc_datatype(MPI_Datatype dt) {
-    if (dt == MPI_CHAR)               return UCC_DT_INT8;
-    if (dt == MPI_SIGNED_CHAR)        return UCC_DT_INT8;
-    if (dt == MPI_UNSIGNED_CHAR)      return UCC_DT_UINT8;
-    if (dt == MPI_BYTE)               return UCC_DT_INT8;
-    if (dt == MPI_SHORT)              return UCC_DT_INT16;
-    if (dt == MPI_UNSIGNED_SHORT)     return UCC_DT_UINT16;
-    if (dt == MPI_INT)                return UCC_DT_INT32;
-    if (dt == MPI_UNSIGNED)           return UCC_DT_UINT32;
-    if (dt == MPI_LONG)               return UCC_DT_INT64;
-    if (dt == MPI_UNSIGNED_LONG)      return UCC_DT_UINT64;
-    if (dt == MPI_FLOAT)              return UCC_DT_FLOAT32;
-    if (dt == MPI_DOUBLE)             return UCC_DT_FLOAT64;
-    if (dt == MPI_LONG_DOUBLE)        return UCC_DT_FLOAT128;
-    if (dt == MPI_COMPLEX)            return UCC_DT_FLOAT32_COMPLEX;
-    if (dt == MPI_DOUBLE_COMPLEX)     return UCC_DT_FLOAT64_COMPLEX;
-    if (dt == MPI_LONG_LONG)          return UCC_DT_INT64;
-    if (dt == MPI_UNSIGNED_LONG_LONG) return UCC_DT_UINT64;
-    
-    fprintf(stderr, "Unsupported MPI datatype in conversion to UCC\n");
-    fprintf(stderr, "i:%d\n", dt);
-    MPI_Abort(MPI_COMM_WORLD, 1);
-    return 0; // Never reached
-}
-static MPI_Datatype F_to_C_dt(int dtype){
-    if(dtype == 17)   return MPI_DOUBLE;
-    if(dtype == 7)    return MPI_INT;
+    char str[MPI_MAX_OBJECT_NAME];
+    int len;
+    MPI_Fint _dt = MPI_Type_c2f(dt);
+    if (_dt == MPI_Type_c2f(MPI_CHARACTER))         return UCC_DT_INT8;
+    if (_dt == MPI_Type_c2f(MPI_BYTE))              return UCC_DT_INT8;
+    if (_dt == MPI_Type_c2f(MPI_DOUBLE_PRECISION))  return UCC_DT_FLOAT64;
+    if (_dt == MPI_Type_c2f(MPI_COMPLEX))           return UCC_DT_FLOAT32_COMPLEX;
+    if (_dt == MPI_Type_c2f(MPI_DOUBLE_COMPLEX))    return UCC_DT_FLOAT64_COMPLEX;
+    if (_dt == MPI_Type_c2f(MPI_REAL))              return UCC_DT_FLOAT32;
+    if (_dt == MPI_Type_c2f(MPI_INTEGER))           return UCC_DT_INT32;
 
-    fprintf(stderr, "Unsupported MPI datatype in conversion to UCC\n");
-    fprintf(stderr, "i:%d\n", dtype);
+/*    if (dt == MPI_Type_c2f(MPI_SIGNED_CHAR)        return UCC_DT_INT8;
+    if (dt == MPI_Type_c2f(MPI_UNSIGNED_CHAR)      return UCC_DT_UINT8;
+    if (dt == MPI_Type_c2f(MPI_SHORT)              return UCC_DT_INT16;
+    if (dt == MPI_Type_c2f(MPI_UNSIGNED_SHORT)     return UCC_DT_UINT16;
+    if (dt == MPI_Type_c2f(MPI_UNSIGNED)           return UCC_DT_UINT32;
+    if (dt == MPI_Type_c2f(MPI_LONG)               return UCC_DT_INT64;
+    if (dt == MPI_Type_c2f(MPI_UNSIGNED_LONG)      return UCC_DT_UINT64;
+    if (dt == MPI_Type_c2f(MPI_LONG_DOUBLE)        return UCC_DT_FLOAT128;
+    if (dt == MPI_Type_c2f(MPI_LONG_LONG)          return UCC_DT_INT64;
+    if (dt == MPI_Type_c2f(MPI_UNSIGNED_LONG_LONG) return UCC_DT_UINT64;
+*/    
+    MPI_Type_get_name(dt, str, &len);
+    fprintf(stderr, "Unsupported MPI datatype in conversion to UCC (%s)\n", str);
     MPI_Abort(MPI_COMM_WORLD, 1);
     return 0; // Never reached
 }
@@ -185,8 +180,6 @@ int MPI_Alltoall(const void *sendbuf, int sendcount,
     args.dst.info.datatype = mpi_to_ucc_datatype(recvtype);
     args.dst.info.mem_type = UCC_MEMORY_TYPE_CUDA;
 
-    //fprintf(stderr, "[%p, %d, %d] \n", recvbuf, recvcount, recvtype);
-    //fprintf(stderr, "[%p, %d, %d] \n", sendbuf, sendcount, sendtype);
     UCC_CHECK(ucc_collective_init(&args, &req, g_team));
 
     /* Set up CUDA stream trigger */
@@ -231,26 +224,22 @@ void UCC_Alltoall(const void *sendbuf, int sendcount,
      MPI_Datatype dt_in, dt_out;
      MPI_Comm c_comm = MPI_Comm_f2c(f_comm);
 
-     dt_out = /*MPI_Type_f2c*/F_to_C_dt(sendtype);
-     dt_in  = /*MPI_Type_f2c*/F_to_C_dt(recvtype);
-     //fprintf(stderr, "dt: %d -> %d\n", sendtype, dt_out);
-     //fprintf(stderr, "check: %d -> %d\n", 7, MPI_INT);
-     //fprintf(stderr, "Check: %d -> %d\n", 7, MPI_INT);
+     dt_out = MPI_Type_f2c(sendtype);
+     dt_in  = MPI_Type_f2c(recvtype);
 
      int l_rank, l_size, res=-1;
      MPI_Comm_rank(c_comm, &l_rank);
      MPI_Comm_size(c_comm, &l_size);
 
-     //printf("addr = %p %p\n", sendbuf, recvbuf);
      if(g_rank != l_rank || g_size != l_size){
            fprintf(stderr, "my rank = %d, size = %d; global = [%d %d]\n", l_rank, l_size, g_rank, g_size);
 	   MPI_Abort(MPI_COMM_WORLD, res);
 	   return;
      }
      int err =   
-	  MPI_Alltoall(sendbuf, sendcount, /*MPI_DOUBLE_COMPLEX MPI_INT */ dt_out, 
-		       recvbuf, recvcount, /*MPI_DOUBLE_COMPLEX MPI_INT */ dt_in, 
-		       c_comm, stream);
+	  MPI_Alltoall(sendbuf, sendcount, dt_out, 
+		           recvbuf, recvcount, dt_in, 
+		           c_comm, stream);
      *ierr = err;
      return;
 }
