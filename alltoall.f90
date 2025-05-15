@@ -70,7 +70,7 @@ program test_mpi_alltoall
 
     write (*,*) "Rank ", rank, " uses device ", DEVICE_NUM
     ierr = GET_FREE_MEM_DEVICE(mem)
-    write(*,*) DEVICE_NUM, " free mem before NCCL init:", mem
+    write(*,"(I4,A,F10.4)") DEVICE_NUM, " free mem before NCCL initi [GB]:", (mem/1024./1024./1024.)
 
     call MPI_Barrier(comm, ierr)
     start_time= MPI_Wtime()
@@ -93,7 +93,7 @@ program test_mpi_alltoall
          print *, "nccl init: ", time_taken
     end if
     ierr = GET_FREE_MEM_DEVICE(mem)
-    write(*,*) DEVICE_NUM, " free mem after NCCL init:", mem
+    write(*,"(I4,A,F10.4)") DEVICE_NUM, " free mem after NCCL init [GB]:", (mem/1024./1024./1024.)
 
 
 
@@ -118,7 +118,7 @@ program test_mpi_alltoall
     ! Perform MPI_Alltoall and measure the time taken
     call MPI_Barrier(comm, ierr)
     ierr = GET_FREE_MEM_DEVICE(mem)
-    write(*,*) DEVICE_NUM, " free mem before warming up:", mem
+    write(*,"(I4,A,F10.4)") DEVICE_NUM, " free mem before warming up [GB]:", (mem/1024./1024./1024.)
 
 
     !$acc host_data use_device(sendbuf,recvbuf)
@@ -127,7 +127,7 @@ program test_mpi_alltoall
         if(iter .eq. 1) then
             call MPI_Barrier(comm, ierr)
             ierr = GET_FREE_MEM_DEVICE(mem)
-            write(*,*) DEVICE_NUM, " free mem before measurments:", mem
+            write(*,"(I4,A,F10.4)") DEVICE_NUM, " free mem before measurments [GB]:", (mem/1024./1024./1024.)
 
             start_time= MPI_Wtime()
         endif
@@ -150,8 +150,7 @@ program test_mpi_alltoall
     !$acc end host_data
     !$acc wait
     ierr = GET_FREE_MEM_DEVICE(mem)
-    write(*,*) DEVICE_NUM, " free mem after measurments:", mem
-
+    write(*,"(I4,A,F10.4)") DEVICE_NUM, " free mem after measurments [GB]:", (mem/1024./1024./1024.)
 
     end_time= MPI_Wtime()
     time_taken = end_time - start_time
@@ -174,6 +173,8 @@ program test_mpi_alltoall
     ncclRes = ncclCommDestroy(NCCL_COMM)
 
     call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+    ierr = GET_FREE_MEM_DEVICE(mem)
+    write(*,"(I4,A,F10.4)") DEVICE_NUM, " free mem after shutting NCCL comm down [GB]:", (mem/1024./1024./1024.)
     CALL ACC_SHUTDOWN(ACC_DEVICE_NVIDIA)
 
     ! Finalize MPI
