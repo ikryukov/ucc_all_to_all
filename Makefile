@@ -12,13 +12,13 @@ INCLUDES = -I$(CUDA_HOME)/include \
            -I./include
 
 # Compiler flags
-CFLAGS = -g -fPIC $(INCLUDES)
-FFLAGS = -g -acc -gpu=cc80,cc90,cc70 -Minfo=accel
+CFLAGS =  -fPIC $(INCLUDES)
+FFLAGS =  -acc -gpu=cc80,cc90,cc70 -Minfo=accel
 NVCCFLAGS = -g -O2 $(INCLUDES)
 
 # Linker flags
-LDFLAGS = -L$(CUDA_HOME)/lib64 -L$(UCC_HOME)/lib -acc
-LIBS = -lcudart -lucc
+LDFLAGS = -L$(CUDA_HOME)/lib64 -L$(UCC_HOME)/lib -acc 
+LIBS = -lcudart -lucc -lnvToolsExt
 
 # Library name
 LIB = libucc_a2a.so

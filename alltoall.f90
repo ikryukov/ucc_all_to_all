@@ -33,6 +33,15 @@ program test_mpi_alltoall
             type(c_devptr), value :: xsend, xrecv
             integer(kind=cuda_stream_kind),value :: stream
       END SUBROUTINE
+
+      subroutine nvtx_push(string) bind(c, name="nvtxRangePushA")
+        USE iso_c_binding
+        character(kind=c_char) :: string(*)
+      end subroutine nvtx_push
+
+      subroutine nvtx_pop() bind(c, name="nvtxRangePop")
+      end subroutine nvtx_pop
+
     END INTERFACE
 
     ! Initialize MPI
@@ -127,11 +136,12 @@ program test_mpi_alltoall
         if(iter .eq. 1) then
             call MPI_Barrier(comm, ierr)
             ierr = GET_FREE_MEM_DEVICE(mem)
-            write(*,"(I4,A,F10.4)") DEVICE_NUM, " free mem before measurments [GB]:", (mem/1024./1024./1024.)
+            write(*,"(I4,A,F10.4)") DEVICE_NUM, " free mem before measurements [GB]:", (mem/1024./1024./1024.)
 
             start_time= MPI_Wtime()
+            call NVTX_PUSH("measure")
         endif
-        if( .true. ) then
+        if( .false. ) then
             ncclRes = ncclGroupStart()
             IF ( ncclRes <> ncclSuccess ) write(*,*) "ncclRes 1:",ncclRes
             DO i=1,size
@@ -149,8 +159,9 @@ program test_mpi_alltoall
     enddo
     !$acc end host_data
     !$acc wait
+    call NVTX_POP()
     ierr = GET_FREE_MEM_DEVICE(mem)
-    write(*,"(I4,A,F10.4)") DEVICE_NUM, " free mem after measurments [GB]:", (mem/1024./1024./1024.)
+    write(*,"(I4,A,F10.4)") DEVICE_NUM, " free mem after measurements [GB]:", (mem/1024./1024./1024.)
 
     end_time= MPI_Wtime()
     time_taken = end_time - start_time
